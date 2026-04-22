@@ -1,6 +1,10 @@
 # c2o-plugin
 
-OpenShift Console dynamic plugin for deploying and managing c2o (Claude-to-OpenShift) coding agents. Provides a self-service UI where users deploy Claude Code agent instances into their own namespaces, manage their lifecycle, and get connection details for Claude Code MCP integration.
+OpenShift Console dynamic plugin for deploying and managing c2o (Claude-to-OpenShift) coding agents. 
+
+Provides a self-service UI where users deploy Claude Code agent instances into their own namespaces, manage their lifecycle, and get connection details for Claude Code MCP integration.
+
+Create "c2o agent swarms" — a system that orchestrates Claude agents running in OpenShift pods, dispatching work via oc exec (local mode) or HTTP SSE (in-cluster mode).
 
 ## Features
 

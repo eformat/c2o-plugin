@@ -284,7 +284,7 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 									corev1.ResourceCPU:    resource.MustParse("4000m"),
 								},
 							},
-							VolumeMounts: gcpVolumeMounts(credentialName),
+							VolumeMounts: gcpVolumeMounts(),
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -420,23 +420,22 @@ func ensureAgentServiceAccount(client *kubernetes.Clientset, namespace string) e
 	return nil
 }
 
-func gcpVolumeMounts(credentialName string) []corev1.VolumeMount {
-	mounts := []corev1.VolumeMount{
+func gcpVolumeMounts() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
 		{Name: "workspace", MountPath: "/home/user/workspace"},
 		{Name: "workspace", MountPath: "/home/user/.claude", SubPath: ".claude"},
 		{Name: "workspace", MountPath: "/home/user/.cache", SubPath: ".cache"},
+		{Name: "gcp-adc", MountPath: "/home/user/.config/gcloud", ReadOnly: true},
+		{Name: "gcp-adc", MountPath: "/adc", ReadOnly: true},
 	}
-	if credentialName != "" {
-		mounts = append(mounts,
-			corev1.VolumeMount{Name: "gcp-adc", MountPath: "/home/user/.config/gcloud", ReadOnly: true},
-			corev1.VolumeMount{Name: "gcp-adc", MountPath: "/adc", ReadOnly: true},
-		)
-	}
-	return mounts
 }
 
 func gcpVolumes(pvcName, credentialName string) []corev1.Volume {
-	vols := []corev1.Volume{
+	adcSecret := "c2o-env"
+	if credentialName != "" {
+		adcSecret = credentialName
+	}
+	return []corev1.Volume{
 		{
 			Name: "workspace",
 			VolumeSource: corev1.VolumeSource{
@@ -445,13 +444,11 @@ func gcpVolumes(pvcName, credentialName string) []corev1.Volume {
 				},
 			},
 		},
-	}
-	if credentialName != "" {
-		vols = append(vols, corev1.Volume{
+		{
 			Name: "gcp-adc",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName: credentialName,
+					SecretName: adcSecret,
 					Optional:   boolPtr(true),
 					Items: []corev1.KeyToPath{
 						{
@@ -461,9 +458,8 @@ func gcpVolumes(pvcName, credentialName string) []corev1.Volume {
 					},
 				},
 			},
-		})
+		},
 	}
-	return vols
 }
 
 func boolPtr(b bool) *bool {
