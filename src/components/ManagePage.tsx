@@ -13,6 +13,8 @@ import {
   EmptyStateBody,
   EmptyStateActions,
   EmptyStateFooter,
+  Flex,
+  FlexItem,
 } from '@patternfly/react-core';
 import {
   Table,
@@ -35,6 +37,8 @@ const ManagePage: React.FC = () => {
   const [error, setError] = React.useState('');
   const [connection, setConnection] = React.useState<ConnectionInfo | null>(null);
   const [showConnection, setShowConnection] = React.useState(false);
+  const [scaling, setScaling] = React.useState<Record<string, boolean>>({});
+  const [adding, setAdding] = React.useState(false);
 
   React.useEffect(() => {
     api.listNamespaces().then(setNamespaces).catch(() => {});
@@ -57,6 +61,37 @@ const ManagePage: React.FC = () => {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleScale = async (name: string, replicas: number) => {
+    setScaling((prev) => ({ ...prev, [name]: true }));
+    try {
+      await api.scaleAgent(name, namespace, replicas);
+      await loadAgents();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setScaling((prev) => ({ ...prev, [name]: false }));
+    }
+  };
+
+  const handleAddAgent = async () => {
+    if (!agents.length) return;
+    const ref = agents[0];
+    setAdding(true);
+    setError('');
+    try {
+      await api.addAgent({
+        namespace,
+        agentType: ref.agentType,
+        image: ref.image,
+      });
+      await loadAgents();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setAdding(false);
     }
   };
 
@@ -117,11 +152,23 @@ const ManagePage: React.FC = () => {
             </Button>
           </ToolbarItem>
           {agents.length > 0 && (
-            <ToolbarItem>
-              <Button variant="primary" onClick={handleShowConnection}>
-                Connection Details
-              </Button>
-            </ToolbarItem>
+            <>
+              <ToolbarItem>
+                <Button variant="primary" onClick={handleShowConnection}>
+                  Connection Details
+                </Button>
+              </ToolbarItem>
+              <ToolbarItem>
+                <Button
+                  variant="secondary"
+                  onClick={handleAddAgent}
+                  isLoading={adding}
+                  isDisabled={adding}
+                >
+                  Add Agent
+                </Button>
+              </ToolbarItem>
+            </>
           )}
           <ToolbarItem align={{ default: 'alignEnd' }}>
             <Button variant="primary" component="a" href="/c2o/deploy">
@@ -160,6 +207,7 @@ const ManagePage: React.FC = () => {
               <Th>Instance</Th>
               <Th>Type</Th>
               <Th>Status</Th>
+              <Th>Replicas</Th>
               <Th>Image</Th>
               <Th>Age</Th>
               <Th>Actions</Th>
@@ -176,6 +224,37 @@ const ManagePage: React.FC = () => {
                 <Td dataLabel="Status">
                   {statusDot(agent.status)}
                   {agent.status}
+                </Td>
+                <Td dataLabel="Replicas">
+                  <Flex alignItems={{ default: 'alignItemsCenter' }} spaceItems={{ default: 'spaceItemsXs' }}>
+                    <FlexItem>
+                      <Button
+                        variant="plain"
+                        size="sm"
+                        isDisabled={agent.replicas === 0 || scaling[agent.name]}
+                        onClick={() => handleScale(agent.name, 0)}
+                        aria-label={`Scale down ${agent.name}`}
+                        style={{ padding: '2px 6px', fontWeight: 700, fontSize: 16, lineHeight: 1 }}
+                      >
+                        −
+                      </Button>
+                    </FlexItem>
+                    <FlexItem style={{ minWidth: 20, textAlign: 'center', fontWeight: 600 }}>
+                      {agent.replicas}
+                    </FlexItem>
+                    <FlexItem>
+                      <Button
+                        variant="plain"
+                        size="sm"
+                        isDisabled={agent.replicas === 1 || scaling[agent.name]}
+                        onClick={() => handleScale(agent.name, 1)}
+                        aria-label={`Scale up ${agent.name}`}
+                        style={{ padding: '2px 6px', fontWeight: 700, fontSize: 16, lineHeight: 1 }}
+                      >
+                        +
+                      </Button>
+                    </FlexItem>
+                  </Flex>
                 </Td>
                 <Td dataLabel="Image">
                   <code style={{ fontSize: 12 }}>{agent.image?.split('/').pop()}</code>

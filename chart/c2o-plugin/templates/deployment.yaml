@@ -15,6 +15,7 @@ spec:
         {{- include "c2o-plugin.selectorLabels" . | nindent 8 }}
     spec:
       serviceAccountName: {{ include "c2o-plugin.serviceAccountName" . }}
+      automountServiceAccountToken: false
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
@@ -27,6 +28,10 @@ spec:
               value: {{ .Values.plugin.port | quote }}
             - name: PLUGIN_DIST_DIR
               value: /app/dist
+            - name: KUBE_SA_TOKEN_PATH
+              value: /var/run/kube-sa/token
+            - name: KUBE_SA_CA_PATH
+              value: /var/run/kube-sa/ca.crt
             {{- if .Values.tls.enabled }}
             - name: TLS_CERT_FILE
               value: /var/serving-cert/tls.crt
@@ -36,12 +41,15 @@ spec:
             - name: DEV_MODE
               value: "true"
             {{- end }}
-          {{- if .Values.tls.enabled }}
           volumeMounts:
+            - name: kube-sa-token
+              readOnly: true
+              mountPath: /var/run/kube-sa
+            {{- if .Values.tls.enabled }}
             - name: serving-cert
               mountPath: /var/serving-cert
               readOnly: true
-          {{- end }}
+            {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
           livenessProbe:
@@ -51,6 +59,7 @@ spec:
               {{- if .Values.tls.enabled }}
               scheme: HTTPS
               {{- end }}
+            initialDelaySeconds: 10
             periodSeconds: 30
           readinessProbe:
             httpGet:
@@ -59,6 +68,7 @@ spec:
               {{- if .Values.tls.enabled }}
               scheme: HTTPS
               {{- end }}
+            initialDelaySeconds: 5
             periodSeconds: 10
           securityContext:
             runAsNonRoot: true
@@ -68,9 +78,20 @@ spec:
                 - ALL
             seccompProfile:
               type: RuntimeDefault
-      {{- if .Values.tls.enabled }}
       volumes:
+        - name: kube-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+        {{- if .Values.tls.enabled }}
         - name: serving-cert
           secret:
             secretName: {{ include "c2o-plugin.fullname" . }}-tls
-      {{- end }}
+        {{- end }}

@@ -24,14 +24,17 @@ func main() {
 
 	r := mux.NewRouter()
 
-	// API routes with auth middleware
+	// API routes with rate limiting and auth middleware
 	api := r.PathPrefix("/api").Subrouter()
+	api.Use(handlers.RateLimitMiddleware)
 	api.Use(handlers.AuthMiddleware)
 
 	api.HandleFunc("/namespaces", handlers.ListNamespaces).Methods("GET")
 	api.HandleFunc("/namespaces", handlers.CreateNamespace).Methods("POST")
 	api.HandleFunc("/agents", handlers.ListAgents).Methods("GET")
+	api.HandleFunc("/agents/add", handlers.AddAgent).Methods("POST")
 	api.HandleFunc("/agents/{name}", handlers.DeleteAgent).Methods("DELETE")
+	api.HandleFunc("/agents/{name}/scale", handlers.ScaleAgent).Methods("PATCH")
 	api.HandleFunc("/deploy", handlers.Deploy).Methods("POST")
 	api.HandleFunc("/credentials", handlers.CreateCredentials).Methods("POST")
 	api.HandleFunc("/credentials", handlers.ListCredentials).Methods("GET")

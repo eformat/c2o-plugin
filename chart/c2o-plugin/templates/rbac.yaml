@@ -23,3 +23,54 @@ subjects:
   - kind: ServiceAccount
     name: {{ include "c2o-plugin.serviceAccountName" . }}
     namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "c2o-plugin.fullname" . }}-auth
+  labels:
+    {{- include "c2o-plugin.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources: ["subjectaccessreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "c2o-plugin.fullname" . }}-auth
+  labels:
+    {{- include "c2o-plugin.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "c2o-plugin.fullname" . }}-auth
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "c2o-plugin.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "c2o-plugin.fullname" . }}-user
+  labels:
+    {{- include "c2o-plugin.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["c2o.openshift.io"]
+    resources: ["agents"]
+    verbs: ["use"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "c2o-plugin.fullname" . }}-admin
+  labels:
+    {{- include "c2o-plugin.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["c2o.openshift.io"]
+    resources: ["agents"]
+    verbs: ["use", "admin"]

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/rhai-code/c2o-plugin/pkg/k8s"
@@ -41,8 +42,20 @@ const (
 	managedByLabel  = "c2o-plugin"
 )
 
+var invalidLabelChars = regexp.MustCompile(`[^a-zA-Z0-9._-]`)
+
+func sanitizeLabelValue(s string) string {
+	s = invalidLabelChars.ReplaceAllString(s, "-")
+	if len(s) > 63 {
+		s = s[:63]
+	}
+	s = strings.Trim(s, "-_.")
+	return s
+}
+
 // Deploy creates c2o agent instances in the target namespace.
 func Deploy(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r)
 	token := r.Header.Get("X-User-Token")
 
 	var req DeployRequest
@@ -51,8 +64,8 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Namespace == "" {
-		httpError(w, http.StatusBadRequest, "namespace is required")
+	if req.Namespace == "" || !isValidNamespace(req.Namespace) {
+		httpError(w, http.StatusBadRequest, "invalid namespace name")
 		return
 	}
 	if req.Count < 1 || req.Count > 10 {
@@ -61,12 +74,25 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Prefix == "" {
 		req.Prefix = "agent"
+	} else if !isValidPrefix(req.Prefix) {
+		httpError(w, http.StatusBadRequest, "invalid agent prefix")
+		return
 	}
 	if req.AgentType == "" {
 		req.AgentType = "claude"
+	} else if !isValidAgentType(req.AgentType) {
+		httpError(w, http.StatusBadRequest, "invalid agent type")
+		return
 	}
 	if req.Image == "" {
 		req.Image = defaultImage
+	} else if !isValidImage(req.Image) {
+		httpError(w, http.StatusBadRequest, "invalid image reference")
+		return
+	}
+	if req.CredentialName != "" && !isValidSecretName(req.CredentialName) {
+		httpError(w, http.StatusBadRequest, "invalid credential name")
+		return
 	}
 
 	client, err := k8s.ClientFromToken(token)
@@ -80,6 +106,13 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	_, err = client.CoreV1().Namespaces().Get(context.Background(), req.Namespace, metav1.GetOptions{})
 	if err != nil {
 		httpError(w, http.StatusBadRequest, fmt.Sprintf("namespace %q not found or not accessible", req.Namespace))
+		return
+	}
+
+	// Ensure zero-permission service account for agent pods
+	if err := ensureAgentServiceAccount(client, req.Namespace); err != nil {
+		slog.Error("failed to create agent service account", "error", err)
+		httpError(w, http.StatusInternalServerError, "failed to create agent service account")
 		return
 	}
 
@@ -100,23 +133,27 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 			"app":                          "c2o",
 			"c2o.instance":                 instance,
 			"c2o.agent-type":               req.AgentType,
+			"c2o.deployed-by":              sanitizeLabelValue(user.Username),
 			"app.kubernetes.io/managed-by": managedByLabel,
+		}
+		annotations := map[string]string{
+			"c2o.openshift.io/deployed-by": user.Username,
 		}
 
 		// Create PVC
-		if err := createPVC(client, req.Namespace, instance, labels); err != nil {
+		if err := createPVC(client, req.Namespace, instance, labels, annotations); err != nil {
 			slog.Error("failed to create PVC", "error", err, "instance", instance)
 		}
 
 		// Create Deployment
-		if err := createDeployment(client, req.Namespace, deployName, instance, req.Image, req.CredentialName, labels); err != nil {
+		if err := createDeployment(client, req.Namespace, deployName, instance, req.Image, req.CredentialName, labels, annotations); err != nil {
 			slog.Error("failed to create deployment", "error", err, "instance", instance)
 			httpError(w, http.StatusInternalServerError, fmt.Sprintf("failed to create agent %s", instance))
 			return
 		}
 
 		// Create Services
-		if err := createServices(client, req.Namespace, instance, labels); err != nil {
+		if err := createServices(client, req.Namespace, instance, labels, annotations); err != nil {
 			slog.Error("failed to create services", "error", err, "instance", instance)
 		}
 
@@ -125,13 +162,13 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		if dynErr != nil {
 			slog.Error("failed to create dynamic client for route", "error", dynErr)
 		} else {
-			if err := createGrafanaRoute(dynClient, req.Namespace, instance, labels); err != nil {
+			if err := createGrafanaRoute(dynClient, req.Namespace, instance, labels, annotations); err != nil {
 				slog.Error("failed to create grafana route", "error", err, "instance", instance)
 			}
 		}
 	}
 
-	slog.Info("deployed agents", "namespace", req.Namespace, "count", req.Count, "agents", agentNames)
+	slog.Info("AUDIT: agents deployed", "user", user.Username, "namespace", req.Namespace, "count", req.Count, "agentType", req.AgentType, "image", req.Image, "agents", agentNames, "remote_addr", r.RemoteAddr)
 	jsonResponse(w, DeployResponse{
 		Status:    "deployed",
 		Namespace: req.Namespace,
@@ -139,13 +176,14 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func createPVC(client *kubernetes.Clientset, namespace, instance string, labels map[string]string) error {
+func createPVC(client *kubernetes.Clientset, namespace, instance string, labels, annotations map[string]string) error {
 	pvcName := fmt.Sprintf("c2o-workspace-%s", instance)
 	pvc := &corev1.PersistentVolumeClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pvcName,
-			Namespace: namespace,
-			Labels:    labels,
+			Name:        pvcName,
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Spec: corev1.PersistentVolumeClaimSpec{
 			AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
@@ -164,7 +202,7 @@ func createPVC(client *kubernetes.Clientset, namespace, instance string, labels 
 	return nil
 }
 
-func createDeployment(client *kubernetes.Clientset, namespace, name, instance, image, credentialName string, labels map[string]string) error {
+func createDeployment(client *kubernetes.Clientset, namespace, name, instance, image, credentialName string, labels, annotations map[string]string) error {
 	replicas := int32(1)
 	pvcName := fmt.Sprintf("c2o-workspace-%s", instance)
 
@@ -186,9 +224,10 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 
 	deployment := &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels:    labels,
+			Name:        name,
+			Namespace:   namespace,
+			Labels:      labels,
+			Annotations: annotations,
 		},
 		Spec: appsv1.DeploymentSpec{
 			Replicas: &replicas,
@@ -203,6 +242,14 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 					Labels: labels,
 				},
 				Spec: corev1.PodSpec{
+					ServiceAccountName:           "c2o-agent",
+					AutomountServiceAccountToken: boolPtr(false),
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: boolPtr(true),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  "c2o",
@@ -219,6 +266,13 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 								{Name: "UPSTREAM_HOST", Value: "localhost"},
 								{Name: "ANTHROPIC_BASE_URL", Value: "http://localhost:8819"},
 								{Name: "ANTHROPIC_API_KEY", Value: "sk-placeholder"},
+								{Name: "KUBECONFIG", Value: "/dev/null"},
+							},
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: boolPtr(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
 							},
 							Resources: corev1.ResourceRequirements{
 								Requests: corev1.ResourceList{
@@ -230,13 +284,7 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 									corev1.ResourceCPU:    resource.MustParse("4000m"),
 								},
 							},
-							VolumeMounts: []corev1.VolumeMount{
-								{Name: "workspace", MountPath: "/home/user/workspace"},
-								{Name: "workspace", MountPath: "/home/user/.claude", SubPath: ".claude"},
-								{Name: "workspace", MountPath: "/home/user/.cache", SubPath: ".cache"},
-								{Name: "gcp-adc", MountPath: "/home/user/.config/gcloud", ReadOnly: true},
-								{Name: "gcp-adc", MountPath: "/adc", ReadOnly: true},
-							},
+							VolumeMounts: gcpVolumeMounts(credentialName),
 							StartupProbe: &corev1.Probe{
 								ProbeHandler: corev1.ProbeHandler{
 									HTTPGet: &corev1.HTTPGetAction{
@@ -269,31 +317,7 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 							},
 						},
 					},
-					Volumes: []corev1.Volume{
-						{
-							Name: "workspace",
-							VolumeSource: corev1.VolumeSource{
-								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
-									ClaimName: pvcName,
-								},
-							},
-						},
-						{
-							Name: "gcp-adc",
-							VolumeSource: corev1.VolumeSource{
-								Secret: &corev1.SecretVolumeSource{
-									SecretName: credentialName,
-									Optional:   boolPtr(true),
-									Items: []corev1.KeyToPath{
-										{
-											Key:  "GOOGLE_APPLICATION_CREDENTIALS_JSON",
-											Path: "application_default_credentials.json",
-										},
-									},
-								},
-							},
-						},
-					},
+					Volumes: gcpVolumes(pvcName, credentialName),
 				},
 			},
 		},
@@ -309,7 +333,7 @@ func createDeployment(client *kubernetes.Clientset, namespace, name, instance, i
 	return nil
 }
 
-func createServices(client *kubernetes.Clientset, namespace, instance string, labels map[string]string) error {
+func createServices(client *kubernetes.Clientset, namespace, instance string, labels, annotations map[string]string) error {
 	selector := map[string]string{
 		"app":          "c2o",
 		"c2o.instance": instance,
@@ -327,9 +351,10 @@ func createServices(client *kubernetes.Clientset, namespace, instance string, la
 	for _, svc := range services {
 		service := &corev1.Service{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      svc.name,
-				Namespace: namespace,
-				Labels:    labels,
+				Name:        svc.name,
+				Namespace:   namespace,
+				Labels:      labels,
+				Annotations: annotations,
 			},
 			Spec: corev1.ServiceSpec{
 				Selector: selector,
@@ -376,6 +401,71 @@ func applyConfigMap(client *kubernetes.Clientset, namespace string) error {
 	return err
 }
 
+func ensureAgentServiceAccount(client *kubernetes.Clientset, namespace string) error {
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "c2o-agent",
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app":                          "c2o",
+				"app.kubernetes.io/managed-by": managedByLabel,
+			},
+		},
+		AutomountServiceAccountToken: boolPtr(false),
+	}
+	_, err := client.CoreV1().ServiceAccounts(namespace).Create(context.Background(), sa, metav1.CreateOptions{})
+	if err != nil && !isAlreadyExists(err) {
+		return err
+	}
+	return nil
+}
+
+func gcpVolumeMounts(credentialName string) []corev1.VolumeMount {
+	mounts := []corev1.VolumeMount{
+		{Name: "workspace", MountPath: "/home/user/workspace"},
+		{Name: "workspace", MountPath: "/home/user/.claude", SubPath: ".claude"},
+		{Name: "workspace", MountPath: "/home/user/.cache", SubPath: ".cache"},
+	}
+	if credentialName != "" {
+		mounts = append(mounts,
+			corev1.VolumeMount{Name: "gcp-adc", MountPath: "/home/user/.config/gcloud", ReadOnly: true},
+			corev1.VolumeMount{Name: "gcp-adc", MountPath: "/adc", ReadOnly: true},
+		)
+	}
+	return mounts
+}
+
+func gcpVolumes(pvcName, credentialName string) []corev1.Volume {
+	vols := []corev1.Volume{
+		{
+			Name: "workspace",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: pvcName,
+				},
+			},
+		},
+	}
+	if credentialName != "" {
+		vols = append(vols, corev1.Volume{
+			Name: "gcp-adc",
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: credentialName,
+					Optional:   boolPtr(true),
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "GOOGLE_APPLICATION_CREDENTIALS_JSON",
+							Path: "application_default_credentials.json",
+						},
+					},
+				},
+			},
+		})
+	}
+	return vols
+}
+
 func boolPtr(b bool) *bool {
 	return &b
 }
@@ -390,28 +480,29 @@ var routeGVR = schema.GroupVersionResource{
 	Resource: "routes",
 }
 
-func createGrafanaRoute(dynClient dynamic.Interface, namespace, instance string, labels map[string]string) error {
+func createGrafanaRoute(dynClient dynamic.Interface, namespace, instance string, labels, annotations map[string]string) error {
 	routeName := fmt.Sprintf("c2o-grafana-%s", instance)
 	svcName := fmt.Sprintf("c2o-grafana-%s", instance)
 
 	route := &unstructured.Unstructured{
-		Object: map[string]interface{}{
+		Object: map[string]any{
 			"apiVersion": "route.openshift.io/v1",
 			"kind":       "Route",
-			"metadata": map[string]interface{}{
-				"name":      routeName,
-				"namespace": namespace,
-				"labels":    labels,
+			"metadata": map[string]any{
+				"name":        routeName,
+				"namespace":   namespace,
+				"labels":      labels,
+				"annotations": annotations,
 			},
-			"spec": map[string]interface{}{
-				"to": map[string]interface{}{
+			"spec": map[string]any{
+				"to": map[string]any{
 					"kind": "Service",
 					"name": svcName,
 				},
-				"port": map[string]interface{}{
+				"port": map[string]any{
 					"targetPort": "3000-tcp",
 				},
-				"tls": map[string]interface{}{
+				"tls": map[string]any{
 					"termination":                   "edge",
 					"insecureEdgeTerminationPolicy": "Redirect",
 				},

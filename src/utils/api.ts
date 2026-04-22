@@ -81,3 +81,23 @@ export async function listCredentials(namespace: string): Promise<CredentialInfo
 export async function getConnection(namespace: string): Promise<ConnectionInfo> {
   return request<ConnectionInfo>(`/connection?namespace=${encodeURIComponent(namespace)}`);
 }
+
+export async function scaleAgent(name: string, namespace: string, replicas: number): Promise<void> {
+  await request(`/agents/${encodeURIComponent(name)}/scale?namespace=${encodeURIComponent(namespace)}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ replicas }),
+  });
+}
+
+export async function addAgent(req: {
+  namespace: string;
+  agentType?: string;
+  prefix?: string;
+  credentialName?: string;
+  image?: string;
+}): Promise<{ status: string; name: string; instance: string }> {
+  return request('/agents/add', {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}

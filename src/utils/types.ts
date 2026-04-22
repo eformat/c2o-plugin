@@ -7,6 +7,8 @@ export interface AgentInfo {
   image: string;
   age: string;
   agentType: string;
+  deployedBy: string;
+  replicas: number;
 }
 
 export interface NamespaceInfo {

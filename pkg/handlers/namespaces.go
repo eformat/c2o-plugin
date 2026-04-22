@@ -57,8 +57,8 @@ func CreateNamespace(w http.ResponseWriter, r *http.Request) {
 		httpError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if req.Name == "" {
-		httpError(w, http.StatusBadRequest, "name is required")
+	if req.Name == "" || !isValidNamespace(req.Name) {
+		httpError(w, http.StatusBadRequest, "invalid namespace name")
 		return
 	}
 
@@ -82,6 +82,7 @@ func CreateNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("created namespace", "name", req.Name)
+	user := GetUser(r)
+	slog.Info("AUDIT: namespace created", "user", user.Username, "name", req.Name, "remote_addr", r.RemoteAddr)
 	jsonResponse(w, map[string]string{"status": "created", "name": req.Name})
 }

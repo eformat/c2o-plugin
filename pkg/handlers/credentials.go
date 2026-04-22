@@ -35,8 +35,12 @@ func CreateCredentials(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Namespace == "" || req.Name == "" {
-		httpError(w, http.StatusBadRequest, "namespace and name are required")
+	if req.Namespace == "" || !isValidNamespace(req.Namespace) {
+		httpError(w, http.StatusBadRequest, "invalid namespace name")
+		return
+	}
+	if req.Name == "" || !isValidSecretName(req.Name) {
+		httpError(w, http.StatusBadRequest, "invalid secret name")
 		return
 	}
 	if len(req.Data) == 0 {
@@ -93,7 +97,8 @@ func CreateCredentials(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	slog.Info("created credentials", "name", req.Name, "namespace", req.Namespace, "type", credType)
+	user := GetUser(r)
+	slog.Info("AUDIT: credentials created", "user", user.Username, "name", req.Name, "namespace", req.Namespace, "type", credType, "remote_addr", r.RemoteAddr)
 	jsonResponse(w, map[string]string{
 		"status": "created",
 		"name":   req.Name,
