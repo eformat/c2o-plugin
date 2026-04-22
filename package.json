@@ -1,0 +1,67 @@
+{
+  "name": "c2o-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "yarn clean && NODE_ENV=production yarn webpack",
+    "build-dev": "yarn clean && yarn webpack",
+    "start": "yarn webpack serve --progress",
+    "ts-node": "ts-node -O '{\"module\":\"commonjs\"}'",
+    "lint": "eslint ./src --fix",
+    "webpack": "node -r ts-node/register ./node_modules/.bin/webpack"
+  },
+  "resolutions": {
+    "webpack": "5.75.0"
+  },
+  "devDependencies": {
+    "@openshift-console/dynamic-plugin-sdk": "^1.6.0",
+    "@openshift-console/dynamic-plugin-sdk-webpack": "^1.2.0",
+    "@patternfly/react-core": "^6.4.0",
+    "@patternfly/react-icons": "^6.4.0",
+    "@patternfly/react-table": "^6.2.0",
+    "@types/node": "^18.0.0",
+    "@types/react": "^17.0.0",
+    "@types/react-dom": "^17.0.0",
+    "@types/react-router-dom": "^5.3.2",
+    "@typescript-eslint/eslint-plugin": "^5.7.0",
+    "@typescript-eslint/parser": "^5.7.0",
+    "css-loader": "^6.5.1",
+    "eslint": "^8.4.1",
+    "eslint-config-prettier": "^8.3.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-react": "^7.27.1",
+    "prettier": "^2.5.1",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
+    "react-i18next": "^11.7.3",
+    "react-router": "5.3.x",
+    "react-router-dom": "5.3.x",
+    "style-loader": "^3.3.1",
+    "ts-loader": "^9.3.1",
+    "ts-node": "^10.8.1",
+    "typescript": "^5.0.0",
+    "webpack": "5.75.0",
+    "webpack-cli": "^4.9.2",
+    "webpack-dev-server": "^4.7.4"
+  },
+  "dependencies": {
+    "react-markdown": "^8.0.0",
+    "rehype-raw": "^6.0.0",
+    "remark-gfm": "^3.0.0"
+  },
+  "consolePlugin": {
+    "name": "c2o-plugin",
+    "version": "0.1.0",
+    "displayName": "c2o Agents",
+    "description": "Self-service deployment and management of c2o coding agents",
+    "exposedModules": {
+      "DeployPage": "./components/DeployPage",
+      "ManagePage": "./components/ManagePage",
+      "HelpPage": "./components/HelpPage"
+    },
+    "dependencies": {
+      "@console/pluginAPI": "*"
+    }
+  }
+}

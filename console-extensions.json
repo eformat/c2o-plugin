@@ -1,0 +1,62 @@
+[
+  {
+    "type": "console.navigation/section",
+    "properties": {
+      "id": "c2o",
+      "name": "c2o Agents"
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/c2o/deploy",
+      "component": { "$codeRef": "DeployPage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "exact": true,
+      "path": "/c2o/manage",
+      "component": { "$codeRef": "ManagePage" }
+    }
+  },
+  {
+    "type": "console.page/route",
+    "properties": {
+      "path": "/c2o/help/:topic?",
+      "component": { "$codeRef": "HelpPage" }
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "c2o-deploy",
+      "name": "Deploy",
+      "href": "/c2o/deploy",
+      "perspective": "admin",
+      "section": "c2o"
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "c2o-manage",
+      "name": "Manage",
+      "href": "/c2o/manage",
+      "perspective": "admin",
+      "section": "c2o"
+    }
+  },
+  {
+    "type": "console.navigation/href",
+    "properties": {
+      "id": "c2o-help",
+      "name": "Help",
+      "href": "/c2o/help/getting-started",
+      "perspective": "admin",
+      "section": "c2o"
+    }
+  }
+]

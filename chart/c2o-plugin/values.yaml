@@ -1,0 +1,31 @@
+replicaCount: 1
+
+image:
+  repository: quay.io/eformat/c2o-plugin
+  tag: latest
+  pullPolicy: Always
+
+plugin:
+  name: c2o-plugin
+  displayName: "c2o Agents"
+  description: "Self-service deployment and management of c2o coding agents"
+  port: 9443
+
+service:
+  type: ClusterIP
+  port: 9443
+
+tls:
+  enabled: true
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+serviceAccount:
+  create: true
+  name: ""

@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "c2o-plugin.fullname" . }}-enable
+  labels:
+    {{- include "c2o-plugin.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    spec:
+      serviceAccountName: {{ include "c2o-plugin.serviceAccountName" . }}
+      restartPolicy: Never
+      containers:
+        - name: enable-plugin
+          image: "registry.redhat.io/openshift4/ose-cli:latest"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              CONSOLE=$(oc get consoles.operator.openshift.io cluster -o json)
+              PLUGINS=$(echo "$CONSOLE" | python3 -c "
+              import json, sys
+              c = json.load(sys.stdin)
+              plugins = c.get('spec', {}).get('plugins', [])
+              name = '{{ .Values.plugin.name }}'
+              if name not in plugins:
+                  plugins.append(name)
+                  print(json.dumps(plugins))
+              else:
+                  print('')
+              ")
+              if [ -n "$PLUGINS" ]; then
+                oc patch consoles.operator.openshift.io cluster --type=merge -p "{\"spec\":{\"plugins\":$PLUGINS}}"
+                echo "Plugin {{ .Values.plugin.name }} enabled"
+              else
+                echo "Plugin {{ .Values.plugin.name }} already enabled"
+              fi
+  backoffLimit: 3

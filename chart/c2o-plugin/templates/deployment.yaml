@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "c2o-plugin.fullname" . }}
+  labels:
+    {{- include "c2o-plugin.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "c2o-plugin.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "c2o-plugin.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "c2o-plugin.serviceAccountName" . }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.plugin.port }}
+              protocol: TCP
+          env:
+            - name: PORT
+              value: {{ .Values.plugin.port | quote }}
+            - name: PLUGIN_DIST_DIR
+              value: /app/dist
+            {{- if .Values.tls.enabled }}
+            - name: TLS_CERT_FILE
+              value: /var/serving-cert/tls.crt
+            - name: TLS_KEY_FILE
+              value: /var/serving-cert/tls.key
+            {{- else }}
+            - name: DEV_MODE
+              value: "true"
+            {{- end }}
+          {{- if .Values.tls.enabled }}
+          volumeMounts:
+            - name: serving-cert
+              mountPath: /var/serving-cert
+              readOnly: true
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.plugin.port }}
+              {{- if .Values.tls.enabled }}
+              scheme: HTTPS
+              {{- end }}
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: {{ .Values.plugin.port }}
+              {{- if .Values.tls.enabled }}
+              scheme: HTTPS
+              {{- end }}
+            periodSeconds: 10
+          securityContext:
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      {{- if .Values.tls.enabled }}
+      volumes:
+        - name: serving-cert
+          secret:
+            secretName: {{ include "c2o-plugin.fullname" . }}-tls
+      {{- end }}

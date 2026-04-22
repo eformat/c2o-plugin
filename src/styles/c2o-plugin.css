@@ -1,0 +1,254 @@
+/* c2o Plugin — Custom Styles
+   Inspired by prettyfish design language */
+
+/* === Agent Type Cards === */
+.c2o-agent-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 20px;
+  border-radius: 12px;
+  border: 2px solid var(--pf-t--global--border--color--default);
+  background: var(--pf-t--global--background--color--primary--default);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 200px;
+  flex: 1;
+}
+
+.c2o-agent-card:hover:not(.c2o-agent-card--disabled) {
+  border-color: var(--pf-t--global--color--brand--default);
+  transform: scale(1.01);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.c2o-agent-card--selected {
+  border-color: var(--pf-t--global--color--brand--default);
+  background: var(--pf-t--global--color--brand--default);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 102, 204, 0.04) 0%,
+    rgba(0, 102, 204, 0.08) 100%
+  );
+  box-shadow:
+    0 0 0 1px var(--pf-t--global--color--brand--default),
+    0 4px 20px rgba(0, 102, 204, 0.12);
+}
+
+.c2o-agent-card--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  filter: grayscale(0.6);
+}
+
+.c2o-agent-card__icon {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.c2o-agent-card__icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.c2o-agent-card__name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--pf-t--global--text--color--regular);
+  margin: 0;
+}
+
+.c2o-agent-card__description {
+  font-size: 13px;
+  color: var(--pf-t--global--text--color--subtle);
+  text-align: center;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.c2o-agent-card__check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--pf-t--global--color--brand--default);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+/* === Card Grid Layout === */
+.c2o-card-grid {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* === Coming Soon Badge === */
+.c2o-badge-coming-soon {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--pf-t--global--color--status--warning--default);
+  color: var(--pf-t--global--text--color--on-status--warning--default, #000);
+}
+
+/* === Connection Dialog === */
+.c2o-code-block {
+  position: relative;
+  border-radius: 8px;
+  background: var(--pf-t--global--background--color--secondary--default);
+  border: 1px solid var(--pf-t--global--border--color--default);
+  overflow: hidden;
+}
+
+.c2o-code-block pre {
+  margin: 0;
+  padding: 16px;
+  font-family: 'JetBrains Mono', 'Red Hat Mono', 'Liberation Mono', monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.c2o-code-block__copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+}
+
+/* === Deploy Wizard === */
+.c2o-wizard-step {
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.c2o-deploy-summary {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 8px 16px;
+  padding: 16px;
+  border-radius: 8px;
+  background: var(--pf-t--global--background--color--secondary--default);
+  border: 1px solid var(--pf-t--global--border--color--default);
+}
+
+.c2o-deploy-summary dt {
+  font-weight: 600;
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: 13px;
+}
+
+.c2o-deploy-summary dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--pf-t--global--text--color--regular);
+}
+
+/* === Status Indicators === */
+.c2o-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+}
+
+.c2o-status-dot--running {
+  background: var(--pf-t--global--color--status--success--default);
+}
+
+.c2o-status-dot--pending {
+  background: var(--pf-t--global--color--status--warning--default);
+  animation: c2o-pulse 2s infinite;
+}
+
+.c2o-status-dot--unavailable {
+  background: var(--pf-t--global--color--status--danger--default);
+}
+
+.c2o-status-dot--scaled-down {
+  background: var(--pf-t--global--text--color--subtle);
+}
+
+@keyframes c2o-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* === Page Layout === */
+.c2o-page-section {
+  background: transparent !important;
+}
+
+.c2o-page {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.c2o-page__header {
+  margin-bottom: 24px;
+}
+
+.c2o-page__title {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.c2o-page__subtitle {
+  font-size: 14px;
+  color: var(--pf-t--global--text--color--subtle);
+  margin: 0;
+}
+
+/* === Credential Upload === */
+.c2o-file-upload {
+  border: 2px dashed var(--pf-t--global--border--color--default);
+  border-radius: 8px;
+  padding: 24px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.c2o-file-upload:hover {
+  border-color: var(--pf-t--global--color--brand--default);
+}
+
+.c2o-file-upload--active {
+  border-color: var(--pf-t--global--color--brand--default);
+  background: rgba(0, 102, 204, 0.04);
+}
+
+/* === Animations === */
+@keyframes c2o-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.c2o-animate-in {
+  animation: c2o-fade-up 0.2s ease-out;
+}

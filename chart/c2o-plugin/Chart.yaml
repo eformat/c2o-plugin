@@ -1,0 +1,6 @@
+apiVersion: v2
+name: c2o-plugin
+description: OpenShift Console plugin for self-service c2o agent deployment
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
