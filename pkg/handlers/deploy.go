@@ -340,12 +340,13 @@ func createServices(client *kubernetes.Clientset, namespace, instance string, la
 	}
 
 	services := []struct {
-		name string
-		port int32
+		name     string
+		port     int32
+		portName string
 	}{
-		{fmt.Sprintf("c2o-anthropic-%s", instance), 8819},
-		{fmt.Sprintf("c2o-openai-%s", instance), 8899},
-		{fmt.Sprintf("c2o-grafana-%s", instance), 3000},
+		{fmt.Sprintf("c2o-anthropic-%s", instance), 8819, "8819-tcp"},
+		{fmt.Sprintf("c2o-openai-%s", instance), 8899, "8899-tcp"},
+		{fmt.Sprintf("c2o-grafana-%s", instance), 3000, "3000-tcp"},
 	}
 
 	for _, svc := range services {
@@ -360,6 +361,7 @@ func createServices(client *kubernetes.Clientset, namespace, instance string, la
 				Selector: selector,
 				Ports: []corev1.ServicePort{
 					{
+						Name:       svc.portName,
 						Port:       svc.port,
 						TargetPort: intstr.FromInt(int(svc.port)),
 						Protocol:   corev1.ProtocolTCP,
