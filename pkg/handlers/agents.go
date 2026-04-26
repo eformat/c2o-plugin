@@ -339,6 +339,12 @@ func DeleteAgent(w http.ResponseWriter, r *http.Request) {
 	pvcName := fmt.Sprintf("c2o-workspace-%s", instance)
 	_ = client.CoreV1().PersistentVolumeClaims(namespace).Delete(context.Background(), pvcName, metav1.DeleteOptions{})
 
+	dynClient, dynErr := k8s.DynamicClientFromToken(token)
+	if dynErr == nil {
+		routeName := fmt.Sprintf("c2o-grafana-%s", instance)
+		_ = dynClient.Resource(routeGVR).Namespace(namespace).Delete(context.Background(), routeName, metav1.DeleteOptions{})
+	}
+
 	slog.Info("AUDIT: agent deleted", "user", user.Username, "name", name, "namespace", namespace, "owner", owner, "remote_addr", r.RemoteAddr)
 	jsonResponse(w, map[string]string{"status": "deleted", "name": name})
 }
