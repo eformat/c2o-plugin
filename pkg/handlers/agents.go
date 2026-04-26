@@ -482,7 +482,26 @@ func MakeSupervisor(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	command := []string{"bash", "-c", fmt.Sprintf("curl -fsSL %s | bash", supervisorSetupURL)}
+	// Find all other agent instances to use as workers
+	allDeploys, err := client.AppsV1().Deployments(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: "app=c2o",
+	})
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "failed to list agents")
+		return
+	}
+	var otherInstances []string
+	for _, d := range allDeploys.Items {
+		inst := d.Labels["c2o.instance"]
+		if inst != "" && inst != instance {
+			otherInstances = append(otherInstances, inst)
+		}
+	}
+
+	command := []string{"bash", "-c", fmt.Sprintf(
+		"export C2O_INSTANCES=%s; curl -fsSL %s | bash",
+		strings.Join(otherInstances, ","), supervisorSetupURL,
+	)}
 	stdout, stderr, err := k8s.ExecInPod(token, namespace, podName, containerName, command)
 	if err != nil {
 		slog.Error("supervisor setup failed", "error", err, "stderr", stderr, "name", name)
