@@ -421,3 +421,75 @@ func GetAgentPod(w http.ResponseWriter, r *http.Request) {
 
 	httpError(w, http.StatusNotFound, "no running pods found for agent")
 }
+
+const supervisorSetupURL = "https://raw.githubusercontent.com/eformat/vllm-sr-claude/main/.c2o/supervisor/setup-supervisor.sh"
+
+// MakeSupervisor configures an agent as a supervisor by running the setup script.
+func MakeSupervisor(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r)
+	token := r.Header.Get("X-User-Token")
+	name := mux.Vars(r)["name"]
+	namespace := r.URL.Query().Get("namespace")
+	if namespace == "" || !isValidNamespace(namespace) {
+		httpError(w, http.StatusBadRequest, "invalid namespace parameter")
+		return
+	}
+
+	client, err := k8s.ClientFromToken(token)
+	if err != nil {
+		slog.Error("failed to create k8s client", "error", err)
+		httpError(w, http.StatusInternalServerError, "failed to create kubernetes client")
+		return
+	}
+
+	deployment, err := client.AppsV1().Deployments(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		httpError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	owner := deployment.Annotations["c2o.openshift.io/deployed-by"]
+	if owner != "" {
+		if !authorizeResource(w, user, owner) {
+			slog.Warn("AUDIT: make-supervisor denied", "user", user.Username, "name", name, "namespace", namespace, "owner", owner, "remote_addr", r.RemoteAddr)
+			return
+		}
+	}
+
+	instance := deployment.Labels["c2o.instance"]
+	labelSelector := fmt.Sprintf("app=c2o,c2o.instance=%s", instance)
+	pods, err := client.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		httpError(w, http.StatusInternalServerError, "failed to list pods")
+		return
+	}
+
+	var podName, containerName string
+	for _, pod := range pods.Items {
+		if pod.Status.Phase == corev1.PodRunning {
+			podName = pod.Name
+			containerName = "c2o"
+			if len(pod.Spec.Containers) > 0 {
+				containerName = pod.Spec.Containers[0].Name
+			}
+			break
+		}
+	}
+	if podName == "" {
+		httpError(w, http.StatusNotFound, "no running pods found for agent")
+		return
+	}
+
+	command := []string{"bash", "-c", fmt.Sprintf("curl -fsSL %s | bash", supervisorSetupURL)}
+	stdout, stderr, err := k8s.ExecInPod(token, namespace, podName, containerName, command)
+	if err != nil {
+		slog.Error("supervisor setup failed", "error", err, "stderr", stderr, "name", name)
+		httpError(w, http.StatusInternalServerError, fmt.Sprintf("supervisor setup failed: %s", stderr))
+		return
+	}
+
+	slog.Info("AUDIT: agent made supervisor", "user", user.Username, "name", name, "namespace", namespace, "remote_addr", r.RemoteAddr)
+	jsonResponse(w, map[string]string{"status": "ok", "output": stdout})
+}

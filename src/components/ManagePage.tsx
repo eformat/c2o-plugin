@@ -42,6 +42,7 @@ const ManagePage: React.FC = () => {
   const [adding, setAdding] = React.useState(false);
   const [openTerminals, setOpenTerminals] = React.useState<string[]>([]);
   const [activeTerminal, setActiveTerminal] = React.useState('');
+  const [supervisorLoading, setSupervisorLoading] = React.useState<Record<string, boolean>>({});
 
   const handleOpenTerminal = (name: string) => {
     setOpenTerminals((prev) => prev.includes(name) ? prev : [...prev, name]);
@@ -130,6 +131,17 @@ const ManagePage: React.FC = () => {
       setShowConnection(true);
     } catch (err: any) {
       setError(err.message);
+    }
+  };
+
+  const handleMakeSupervisor = async (name: string) => {
+    setSupervisorLoading((prev) => ({ ...prev, [name]: true }));
+    try {
+      await api.makeSupervisor(name, namespace);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSupervisorLoading((prev) => ({ ...prev, [name]: false }));
     }
   };
 
@@ -287,6 +299,16 @@ const ManagePage: React.FC = () => {
                     style={{ marginRight: 8 }}
                   >
                     Console
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    isDisabled={agent.status !== 'Running' || supervisorLoading[agent.name]}
+                    isLoading={supervisorLoading[agent.name]}
+                    onClick={() => handleMakeSupervisor(agent.name)}
+                    style={{ marginRight: 8 }}
+                  >
+                    Supervisor
                   </Button>
                   <Button variant="danger" size="sm" onClick={() => handleDelete(agent.name)}>
                     Delete

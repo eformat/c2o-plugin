@@ -94,6 +94,12 @@ export async function getAgentPod(name: string, namespace: string): Promise<PodI
   return request<PodInfo>(`/agents/${encodeURIComponent(name)}/pod?namespace=${encodeURIComponent(namespace)}`);
 }
 
+export async function makeSupervisor(name: string, namespace: string): Promise<{ status: string; output: string }> {
+  return request(`/agents/${encodeURIComponent(name)}/make-supervisor?namespace=${encodeURIComponent(namespace)}`, {
+    method: 'POST',
+  });
+}
+
 export async function addAgent(req: {
   namespace: string;
   agentType?: string;

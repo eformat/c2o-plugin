@@ -36,6 +36,7 @@ func main() {
 	api.HandleFunc("/agents/{name}", handlers.DeleteAgent).Methods("DELETE")
 	api.HandleFunc("/agents/{name}/scale", handlers.ScaleAgent).Methods("PATCH")
 	api.HandleFunc("/agents/{name}/pod", handlers.GetAgentPod).Methods("GET")
+	api.HandleFunc("/agents/{name}/make-supervisor", handlers.MakeSupervisor).Methods("POST")
 	api.HandleFunc("/deploy", handlers.Deploy).Methods("POST")
 	api.HandleFunc("/credentials", handlers.CreateCredentials).Methods("POST")
 	api.HandleFunc("/credentials", handlers.ListCredentials).Methods("GET")
