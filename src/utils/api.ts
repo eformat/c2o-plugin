@@ -6,6 +6,7 @@ import {
   DeployResponse,
   ConnectionInfo,
   CreateCredentialsRequest,
+  PodInfo,
 } from './types';
 
 const BASE_PATH = '/api/proxy/plugin/c2o-plugin/backend/api';
@@ -87,6 +88,10 @@ export async function scaleAgent(name: string, namespace: string, replicas: numb
     method: 'PATCH',
     body: JSON.stringify({ replicas }),
   });
+}
+
+export async function getAgentPod(name: string, namespace: string): Promise<PodInfo> {
+  return request<PodInfo>(`/agents/${encodeURIComponent(name)}/pod?namespace=${encodeURIComponent(namespace)}`);
 }
 
 export async function addAgent(req: {

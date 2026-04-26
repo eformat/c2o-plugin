@@ -11,6 +11,12 @@ export interface AgentInfo {
   replicas: number;
 }
 
+export interface PodInfo {
+  podName: string;
+  containerName: string;
+  status: string;
+}
+
 export interface NamespaceInfo {
   name: string;
   status: string;

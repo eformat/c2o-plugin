@@ -252,3 +252,137 @@
 .c2o-animate-in {
   animation: c2o-fade-up 0.2s ease-out;
 }
+
+/* === Terminal Drawer === */
+.c2o-drawer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  background: var(--pf-t--global--background--color--primary--default, #1b1d21);
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+  transition: height 0.05s ease-out;
+}
+
+.c2o-drawer__drag-handle {
+  height: 6px;
+  cursor: ns-resize;
+  background: transparent;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.c2o-drawer__drag-handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--pf-t--global--border--color--default, #444);
+}
+
+.c2o-drawer__drag-handle:hover::after {
+  background: var(--pf-t--global--color--brand--default, #06c);
+}
+
+.c2o-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--pf-t--global--background--color--secondary--default, #292b2f);
+  border-bottom: 1px solid var(--pf-t--global--border--color--default, #444);
+  flex-shrink: 0;
+  min-height: 36px;
+}
+
+.c2o-drawer__tabs {
+  display: flex;
+  overflow-x: auto;
+  flex: 1;
+  min-width: 0;
+}
+
+.c2o-drawer__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--pf-t--global--text--color--subtle, #999);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.c2o-drawer__tab:hover {
+  color: var(--pf-t--global--text--color--regular, #e0e0e0);
+}
+
+.c2o-drawer__tab--active {
+  color: var(--pf-t--global--text--color--regular, #e0e0e0);
+  font-weight: 600;
+  border-bottom-color: var(--pf-t--global--color--brand--default, #06c);
+}
+
+.c2o-drawer__tab-label {
+  pointer-events: none;
+}
+
+.c2o-drawer__tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.c2o-drawer__tab:hover .c2o-drawer__tab-close,
+.c2o-drawer__tab--active .c2o-drawer__tab-close {
+  opacity: 1;
+}
+
+.c2o-drawer__tab-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.c2o-drawer__actions {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.c2o-drawer__body {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+  background: #000;
+}
+
+.c2o-terminal {
+  height: 100%;
+}
+
+.c2o-terminal .xterm {
+  height: 100%;
+  padding: 4px;
+}

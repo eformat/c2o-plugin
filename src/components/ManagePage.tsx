@@ -25,6 +25,7 @@ import {
   Td,
 } from '@patternfly/react-table';
 import ConnectionDialog from './ConnectionDialog';
+import TerminalDrawer from './TerminalModal';
 import { AgentInfo, ConnectionInfo, NamespaceInfo } from '../utils/types';
 import * as api from '../utils/api';
 import '../styles/c2o-plugin.css';
@@ -39,6 +40,23 @@ const ManagePage: React.FC = () => {
   const [showConnection, setShowConnection] = React.useState(false);
   const [scaling, setScaling] = React.useState<Record<string, boolean>>({});
   const [adding, setAdding] = React.useState(false);
+  const [openTerminals, setOpenTerminals] = React.useState<string[]>([]);
+  const [activeTerminal, setActiveTerminal] = React.useState('');
+
+  const handleOpenTerminal = (name: string) => {
+    setOpenTerminals((prev) => prev.includes(name) ? prev : [...prev, name]);
+    setActiveTerminal(name);
+  };
+
+  const handleCloseTab = (name: string) => {
+    setOpenTerminals((prev) => {
+      const next = prev.filter((n) => n !== name);
+      if (name === activeTerminal && next.length > 0) {
+        setActiveTerminal(next[next.length - 1]);
+      }
+      return next;
+    });
+  };
 
   React.useEffect(() => {
     api.listNamespaces().then(setNamespaces).catch(() => {});
@@ -261,6 +279,15 @@ const ManagePage: React.FC = () => {
                 </Td>
                 <Td dataLabel="Age">{agent.age}</Td>
                 <Td dataLabel="Actions">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    isDisabled={agent.status !== 'Running'}
+                    onClick={() => handleOpenTerminal(agent.name)}
+                    style={{ marginRight: 8 }}
+                  >
+                    Console
+                  </Button>
                   <Button variant="danger" size="sm" onClick={() => handleDelete(agent.name)}>
                     Delete
                   </Button>
@@ -276,6 +303,15 @@ const ManagePage: React.FC = () => {
         onClose={() => setShowConnection(false)}
         connection={connection}
         namespace={namespace}
+      />
+
+      <TerminalDrawer
+        agents={openTerminals}
+        activeAgent={activeTerminal}
+        namespace={namespace}
+        onSelectTab={setActiveTerminal}
+        onCloseTab={handleCloseTab}
+        onCloseAll={() => setOpenTerminals([])}
       />
     </div>
   );

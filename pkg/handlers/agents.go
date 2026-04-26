@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/rhai-code/c2o-plugin/pkg/k8s"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -347,4 +348,76 @@ func extractInstance(deploymentName string) string {
 		return deploymentName[4:]
 	}
 	return deploymentName
+}
+
+type PodInfo struct {
+	PodName       string `json:"podName"`
+	ContainerName string `json:"containerName"`
+	Status        string `json:"status"`
+}
+
+// GetAgentPod returns the running pod for an agent deployment.
+func GetAgentPod(w http.ResponseWriter, r *http.Request) {
+	user := GetUser(r)
+	token := r.Header.Get("X-User-Token")
+	name := mux.Vars(r)["name"]
+	namespace := r.URL.Query().Get("namespace")
+	if namespace == "" || !isValidNamespace(namespace) {
+		httpError(w, http.StatusBadRequest, "invalid namespace parameter")
+		return
+	}
+
+	client, err := k8s.ClientFromToken(token)
+	if err != nil {
+		slog.Error("failed to create k8s client", "error", err)
+		httpError(w, http.StatusInternalServerError, "failed to create kubernetes client")
+		return
+	}
+
+	deployment, err := client.AppsV1().Deployments(namespace).Get(context.Background(), name, metav1.GetOptions{})
+	if err != nil {
+		httpError(w, http.StatusNotFound, "agent not found")
+		return
+	}
+
+	owner := deployment.Annotations["c2o.openshift.io/deployed-by"]
+	if owner != "" {
+		if !authorizeResource(w, user, owner) {
+			slog.Warn("AUDIT: pod lookup denied", "user", user.Username, "name", name, "namespace", namespace, "owner", owner, "remote_addr", r.RemoteAddr)
+			return
+		}
+	}
+
+	instance := deployment.Labels["c2o.instance"]
+	if instance == "" {
+		httpError(w, http.StatusNotFound, "agent has no instance label")
+		return
+	}
+
+	labelSelector := fmt.Sprintf("app=c2o,c2o.instance=%s", instance)
+	pods, err := client.CoreV1().Pods(namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: labelSelector,
+	})
+	if err != nil {
+		slog.Error("failed to list pods", "error", err, "namespace", namespace, "selector", labelSelector)
+		httpError(w, http.StatusInternalServerError, "failed to list pods")
+		return
+	}
+
+	for _, pod := range pods.Items {
+		if pod.Status.Phase == corev1.PodRunning {
+			containerName := "c2o"
+			if len(pod.Spec.Containers) > 0 {
+				containerName = pod.Spec.Containers[0].Name
+			}
+			jsonResponse(w, PodInfo{
+				PodName:       pod.Name,
+				ContainerName: containerName,
+				Status:        string(pod.Status.Phase),
+			})
+			return
+		}
+	}
+
+	httpError(w, http.StatusNotFound, "no running pods found for agent")
 }
