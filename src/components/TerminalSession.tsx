@@ -12,7 +12,7 @@ interface TerminalSessionProps {
 
 type Status = 'loading' | 'connecting' | 'connected' | 'error' | 'closed';
 
-const CLAUDE_CMD = 'claude --model=claude-sonnet-4-6 --dangerously-skip-permissions --continue';
+const CLAUDE_CMD = 'claude --model=claude-sonnet-4-6 --dangerously-skip-permissions --resume';
 
 const TerminalSession: React.FC<TerminalSessionProps> = ({ agentName, namespace, isActive }) => {
   const [status, setStatus] = React.useState<Status>('loading');
