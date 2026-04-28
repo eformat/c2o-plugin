@@ -7,8 +7,9 @@ import (
 	"net/http"
 
 	"github.com/rhai-code/c2o-plugin/pkg/k8s"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
 type NamespaceInfo struct {
@@ -20,35 +21,41 @@ type CreateNamespaceRequest struct {
 	Name string `json:"name"`
 }
 
-// ListNamespaces returns namespaces the user has access to.
+var (
+	projectGVR        = schema.GroupVersionResource{Group: "project.openshift.io", Version: "v1", Resource: "projects"}
+	projectRequestGVR = schema.GroupVersionResource{Group: "project.openshift.io", Version: "v1", Resource: "projectrequests"}
+)
+
+// ListNamespaces returns projects the user has access to via the OpenShift Project API.
 func ListNamespaces(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("X-User-Token")
-	client, err := k8s.ClientFromToken(token)
+	dynClient, err := k8s.DynamicClientFromToken(token)
 	if err != nil {
 		slog.Error("failed to create k8s client", "error", err)
 		httpError(w, http.StatusInternalServerError, "failed to create kubernetes client")
 		return
 	}
 
-	nsList, err := client.CoreV1().Namespaces().List(context.Background(), metav1.ListOptions{})
+	projectList, err := dynClient.Resource(projectGVR).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
-		slog.Error("failed to list namespaces", "error", err)
-		httpError(w, http.StatusForbidden, "failed to list namespaces")
+		slog.Error("failed to list projects", "error", err)
+		httpError(w, http.StatusForbidden, "failed to list projects")
 		return
 	}
 
-	namespaces := make([]NamespaceInfo, 0, len(nsList.Items))
-	for _, ns := range nsList.Items {
+	namespaces := make([]NamespaceInfo, 0, len(projectList.Items))
+	for _, p := range projectList.Items {
+		status, _, _ := unstructured.NestedString(p.Object, "status", "phase")
 		namespaces = append(namespaces, NamespaceInfo{
-			Name:   ns.Name,
-			Status: string(ns.Status.Phase),
+			Name:   p.GetName(),
+			Status: status,
 		})
 	}
 
 	jsonResponse(w, namespaces)
 }
 
-// CreateNamespace creates a new namespace using the user's token.
+// CreateNamespace creates a new project via OpenShift ProjectRequest API.
 func CreateNamespace(w http.ResponseWriter, r *http.Request) {
 	token := r.Header.Get("X-User-Token")
 
@@ -62,27 +69,31 @@ func CreateNamespace(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client, err := k8s.ClientFromToken(token)
+	dynClient, err := k8s.DynamicClientFromToken(token)
 	if err != nil {
 		slog.Error("failed to create k8s client", "error", err)
 		httpError(w, http.StatusInternalServerError, "failed to create kubernetes client")
 		return
 	}
 
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: req.Name,
+	projectRequest := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "project.openshift.io/v1",
+			"kind":       "ProjectRequest",
+			"metadata": map[string]interface{}{
+				"name": req.Name,
+			},
 		},
 	}
 
-	_, err = client.CoreV1().Namespaces().Create(context.Background(), ns, metav1.CreateOptions{})
+	_, err = dynClient.Resource(projectRequestGVR).Create(context.Background(), projectRequest, metav1.CreateOptions{})
 	if err != nil {
-		slog.Error("failed to create namespace", "error", err, "name", req.Name)
-		httpError(w, http.StatusForbidden, "failed to create namespace: "+err.Error())
+		slog.Error("failed to create project", "error", err, "name", req.Name)
+		httpError(w, http.StatusForbidden, "failed to create project: "+err.Error())
 		return
 	}
 
 	user := GetUser(r)
-	slog.Info("AUDIT: namespace created", "user", user.Username, "name", req.Name, "remote_addr", r.RemoteAddr)
+	slog.Info("AUDIT: project created", "user", user.Username, "name", req.Name, "remote_addr", r.RemoteAddr)
 	jsonResponse(w, map[string]string{"status": "created", "name": req.Name})
 }

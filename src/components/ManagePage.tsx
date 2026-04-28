@@ -60,7 +60,12 @@ const ManagePage: React.FC = () => {
   };
 
   React.useEffect(() => {
-    api.listNamespaces().then(setNamespaces).catch(() => {});
+    const loadProjects = (retries = 2) => {
+      api.listNamespaces().then(setNamespaces).catch(() => {
+        if (retries > 0) setTimeout(() => loadProjects(retries - 1), 1500);
+      });
+    };
+    loadProjects();
   }, []);
 
   React.useEffect(() => {

@@ -102,10 +102,16 @@ func Deploy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure namespace exists
-	_, err = client.CoreV1().Namespaces().Get(context.Background(), req.Namespace, metav1.GetOptions{})
+	// Ensure project exists (uses OpenShift Project API, accessible to non-admin users)
+	dynClient, err := k8s.DynamicClientFromToken(token)
 	if err != nil {
-		httpError(w, http.StatusBadRequest, fmt.Sprintf("namespace %q not found or not accessible", req.Namespace))
+		slog.Error("failed to create dynamic client", "error", err)
+		httpError(w, http.StatusInternalServerError, "failed to create kubernetes client")
+		return
+	}
+	_, err = dynClient.Resource(projectGVR).Get(context.Background(), req.Namespace, metav1.GetOptions{})
+	if err != nil {
+		httpError(w, http.StatusBadRequest, fmt.Sprintf("project %q not found or not accessible", req.Namespace))
 		return
 	}
 

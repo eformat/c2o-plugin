@@ -56,13 +56,21 @@ const DeployPage: React.FC = () => {
   const [showConnection, setShowConnection] = React.useState(false);
 
   React.useEffect(() => {
-    api.listNamespaces().then((ns) => {
-      setNamespaces(ns);
-      setLoadingNs(false);
-    }).catch((err) => {
-      setError(`Failed to load namespaces: ${err.message}`);
-      setLoadingNs(false);
-    });
+    const loadProjects = (retries = 2) => {
+      api.listNamespaces().then((ns) => {
+        setNamespaces(ns);
+        setLoadingNs(false);
+        setError('');
+      }).catch((err) => {
+        if (retries > 0) {
+          setTimeout(() => loadProjects(retries - 1), 1500);
+        } else {
+          setError(`Failed to load projects: ${err.message}`);
+          setLoadingNs(false);
+        }
+      });
+    };
+    loadProjects();
   }, []);
 
   React.useEffect(() => {
@@ -90,14 +98,16 @@ const DeployPage: React.FC = () => {
     if (!newNsName.trim()) return;
     setNsError('');
     try {
-      await api.createNamespace(newNsName.trim());
-      const ns = await api.listNamespaces();
-      setNamespaces(ns);
-      setNamespace(newNsName.trim());
+      const name = newNsName.trim();
+      await api.createNamespace(name);
+      setNamespaces((prev) => [...prev, { name, status: 'Active' }]);
+      setNamespace(name);
       setCreatingNs(false);
       setNewNsName('');
+      setError('');
+      api.listNamespaces().then(setNamespaces).catch(() => {});
     } catch (err: any) {
-      setNsError(err.message || 'Failed to create namespace');
+      setNsError(err.message || 'Failed to create project');
     }
   };
 
